@@ -1,115 +1,50 @@
-const express = require("express");
-const mysql = require("mysql2/promise");
-const cors = require("cors")
+const express = require('express');
+const cors = require('cors');
+require('dotenv').config();
 
-// cria aplicação
+const http = require('http');
+const { Server } = require("socket.io");
+
 const app = express();
+const server = http.createServer(app);
+const io = new Server(server, {
+    cors: {
+        origin: "*", // Em produção, restrinja isso
+        methods: ["GET", "POST"]
+    }
+});
+
+// Middleware
 app.use(express.json());
-app.use(cors())
-const porta = 3000;
+app.use(cors());
 
-const conexao = mysql.createPool({
-    host: "localhost",
-    user: "root",
-    password : "senai",
-    database: "escola_db",
-    port: 3306,
-    waitForConnections: true,
-    connectionLimit: 10,
-    queueLimit : 0
-})
-
-app.get("/alunos", async (req, res) => {
-    try{
-        const [retorno] = await conexao.query("SELECT * FROM alunos")
-        res.status(200).json(retorno);
-    }catch(err){
-        console.log(err);
-        res.status(500).json({erro: "Erro ao buscar alunos"})
-    }
-})
-
-app.post("/alunos", async (req,res) =>{
-    try {
-        const {nome, cpf, cep= null,
-            uf = null, rua = null,
-            numero = null, complemento= null
-        } = req.body;
-
-        if(!nome || !cpf) return res.status(400).json({msg : "Nome e cpf são obrigatorio"})
-        const sql = `
-            INSERT INTO alunos (nome,cpf,cep, uf, rua , numero, complemento)
-            VALUES  (?, ?, ?, ?, ?, ?, ?)`;
-
-        const parametro = [nome, cpf, cep, uf, rua, numero, complemento]
-
-        const [resultado] = await conexao.execute(sql,parametro)
-        console.log(resultado)
-
-        const [novo] = await conexao.execute(`SELECT * FROM alunos WHERE id =  ${resultado.insertId}`)
-        res.status(201).json(novo[0]);
-       
-    } catch (error) {
-        console.log(error);
-        return res.status(500).json({erro : "Erro ao inserir alunos"});
-    }
-})
-
-app.get("/aluno/:id", async(req, res)=>{
-    const id = req.params.id
-    try {
-        const[retorno] = await conexao.query(`SELECT * FROM alunos WHERE id = ${id} `)
-        res.status(200).json(retorno)
-    } catch (error) {
-        console.log(error)
-        return res.status(500).json({erro: "Erro ao buscar aluno"})
-    }
-})
-
-
-
-
-app.delete("/alunos/:id", async (req, res) => {
-    const id = req.params.id;
-    try {
-        const [resultado] = await conexao.execute("DELETE FROM alunos WHERE id = ?", [id]);
-        if (resultado.affectedRows === 0) {
-            return res.status(404).json({ msg: "Aluno não encontrado" });
-        }
-        res.status(200).json({ msg: "Aluno excluído com sucesso!" });
-    } catch (error) {
-        console.log(error);
-        res.status(500).json({ msg: "Erro ao excluir aluno" });
-    }
+// Tornar io acessível nas rotas via req.io
+app.use((req, res, next) => {
+    req.io = io;
+    next();
 });
 
+// Routes
+app.use('/api/auth', require('./src/routes/authRoutes'));
+app.use('/api/students', require('./src/routes/studentRoutes'));
+app.use('/api/forum', require('./src/routes/forumRoutes'));
+app.use('/api/materials', require('./src/routes/materialRoutes'));
+app.use('/api/users', require('./src/routes/userRoutes'));
 
+// Socket.io Logic
+io.on('connection', (socket) => {
+    console.log('Novo usuário conectado:', socket.id);
 
-app.put("/alunos/:id", async (req, res) => {
-    const id = req.params.id;
-    const { nome, cpf, cep, uf, rua, numero, complemento } = req.body;
+    socket.on('chat_message', (msg) => {
+        // Broadcast para todos na sala (exceto remetente se quiser, ou broadcast geral)
+        io.emit('chat_message', msg);
+    });
 
-    if (!nome || !cpf) return res.status(400).json({ msg: "Nome e CPF são obrigatórios" });
-
-    try {
-        const [resultado] = await conexao.execute(
-            `UPDATE alunos 
-             SET nome=?, cpf=?, cep=?, uf=?, rua=?, numero=?, complemento=? 
-             WHERE id=?`,
-            [nome, cpf, cep, uf, rua, numero, complemento, id]
-        );
-
-        if (resultado.affectedRows === 0) {
-            return res.status(404).json({ msg: "Aluno não encontrado" });
-        }
-
-        const [atualizado] = await conexao.execute(`SELECT * FROM alunos WHERE id=?`, [id]);
-        res.status(200).json(atualizado[0]);
-    } catch (error) {
-        console.log(error);
-        res.status(500).json({ msg: "Erro ao atualizar aluno" });
-    }
+    socket.on('disconnect', () => {
+        console.log('Usuário desconectou:', socket.id);
+    });
 });
 
+const PORT = process.env.PORT || 3000;
 
-app.listen(porta, () => console.log(`Servidor rodando http://localhost:${porta}/`));
+server.listen(PORT, () => console.log(`Server running on port ${PORT}`));
