@@ -89,7 +89,8 @@ CREATE TABLE mensagens_chat (
 
 -- Inserir Usuário Admin Padrão
 INSERT INTO usuarios (nome, email, senha, cargo) VALUES 
-('Administrador', 'admin@admin.com', '$2b$10$7mKOjxbVw59sv0n7WTEDeO5mTyOJQdwYKY8RiOukwKWm2ahjrden2', 'admin');
+('Administrador', 'admin@admin.com', '$2b$10$7mKOjxbVw59sv0n7WTEDeO5mTyOJQdwYKY8RiOukwKWm2ahjrden2', 'admin'),
+('Estudante', 'aluno@escola.com', '$2b$10$TlpM5iysvsW36.e/8xHic.63P/3IAkIaJej3pwiL08xWCpfKysdSa', 'aluno');
 
 -- Inserir Alunos de Exemplo (Vinculados a usuarios se desejar, aqui apenas cadastro solto para teste visual)
 INSERT INTO alunos (nome, email, status, cidade, uf) VALUES
